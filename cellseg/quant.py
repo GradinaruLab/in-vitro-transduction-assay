@@ -15,7 +15,7 @@ from skimage.segmentation import watershed
 from scipy import ndimage as ndi
 import scipy.signal
 
-def thresh_finder(second_derivatives, bins, desired_thresh = 2000, standard = True):
+def sig_thresh_finder(histogram, bins, desired_thresh = 1000):
     ''' 
     Searches through a list of second derivatives for the bin value at which the
     previous derivative was greater than desired thresh and the current derivative is less
@@ -26,12 +26,39 @@ def thresh_finder(second_derivatives, bins, desired_thresh = 2000, standard = Tr
     index = 0
     thresh = []
     
-    if standard == True:
-        # Loop through the second derivatives 
-        for i in second_derivatives:
+    result = np.where(histogram == np.max(histogram))
+    
+    peak_val = bins[result[0][0]]
+    
+    dn_dk = np.diff(np.diff(histogram))
+    
+    for i in dn_dk:
 
+        # Look for the threshold location
+        if (past_i > desired_thresh and i <= desired_thresh) and (bins[index] > peak_val):
+
+            # Interpolate to find the appropriate bin equal to the desired thresh
+            threshold = bins[index-1] + (bins[index] - bins[index-1])*(desired_thresh - past_i)/(i-past_i)
+            thresh.append(threshold)
+
+        # Reset the parameters
+        past_i = i
+        index += 1
+    
+    if thresh != []:
+        
+        thresh_val = min(thresh - peak_val)
+        #thresh_val = np.max(thresh)
+
+        return(thresh_val)
+    
+    else:
+        past_i = 0
+        index = 0
+        
+        for i in dn_dk:
             # Look for the threshold location
-            if past_i > desired_thresh and i < desired_thresh:
+            if (past_i > desired_thresh*0.2 and i <= desired_thresh*0.2) and (bins[index] > peak_val):
 
                 # Interpolate to find the appropriate bin equal to the desired thresh
                 threshold = bins[index-1] + (bins[index] - bins[index-1])*(desired_thresh - past_i)/(i-past_i)
@@ -41,14 +68,39 @@ def thresh_finder(second_derivatives, bins, desired_thresh = 2000, standard = Tr
             past_i = i
             index += 1
 
-        return(np.max(thresh))
+        thresh_val = min(thresh - peak_val)
+        #thresh_val = np.max(thresh)
+
+        return(thresh_val)
+
+def bf_thresh_finder(histogram, bins, desired_thresh = 10000, standard = True):
     
+    past_i = 0
+    index = 0
+    thresh = []
+    
+    if standard == True:
+        for i in histogram:
+
+            # Look for the threshold location
+            if past_i > desired_thresh and i <= desired_thresh:
+                
+                # Interpolate to find the appropriate bin equal to the desired thresh
+                threshold = bins[index-1] + (bins[index] - bins[index-1])*(desired_thresh - past_i)/(i-past_i)
+                thresh.append(threshold)
+
+            # Reset the parameters
+            past_i = i
+            index += 1
+    
+        return(np.min(thresh))
+        
     else: 
         # Loop through the second derivatives 
-        for i in second_derivatives:
+        for i in histogram:
 
             # Look for the threshold location
-            if past_i < desired_thresh and i > desired_thresh:
+            if past_i < desired_thresh and i >= desired_thresh:
 
                 # Interpolate to find the appropriate bin equal to the desired thresh
                 threshold = bins[index-1] + (bins[index] - bins[index-1])*(desired_thresh - past_i)/(i-past_i)
@@ -57,7 +109,7 @@ def thresh_finder(second_derivatives, bins, desired_thresh = 2000, standard = Tr
             # Reset the parameters
             past_i = i
             index += 1
-
+        
         return(np.min(thresh))
 
 def brightness_counter(im_labeled, im_pos):
@@ -134,7 +186,7 @@ def remove_large_objects(im, max_size = 1000, connectivity = 1):
 
     return(out)
 
-def brightfield_segmentation(im_bf, gauss_sigma = 30, truncate = 0.35, dark_thresh = 1000, light_thresh = 350, disk_radius = 2):
+def brightfield_segmentation(im_bf, gauss_sigma = 30, truncate = 0.35, dark_thresh = 10000, light_thresh = 3000, disk_radius = 2):
     # Apply a gaussian blur to determine the intensity change in the background
     im_bg = skimage.filters.gaussian(im_bf, sigma = gauss_sigma, truncate = truncate)
     
@@ -145,11 +197,8 @@ def brightfield_segmentation(im_bf, gauss_sigma = 30, truncate = 0.35, dark_thre
     hist_bin = skimage.exposure.histogram(im_no_bg)
     hist, bins = hist_bin
 
-    # Determine the second derivative of the gradient
-    dn_dk = np.diff(np.diff(hist))
-
     # Using the thresh_finder function, determine the threshold that enables separation of dark objects from the background by setting standard to false
-    thresh_lower = thresh_finder(dn_dk, bins, desired_thresh = dark_thresh, standard = False)
+    thresh_lower = bf_thresh_finder(hist, bins, desired_thresh = dark_thresh, standard = False)
     
     # Determine the dark areas
     bf_thresh = (im_no_bg < thresh_lower)
@@ -158,7 +207,7 @@ def brightfield_segmentation(im_bf, gauss_sigma = 30, truncate = 0.35, dark_thre
     #bf_thresh = remove_large_objects(bf_thresh, max_size = 1000)
     
     # Using the thresh_finder function, determine the threshold that enables separation of bright objects from the background
-    thresh_upper = thresh_finder(dn_dk, bins, desired_thresh = light_thresh, standard = True)
+    thresh_upper = bf_thresh_finder(hist, bins, desired_thresh = light_thresh, standard = True)
     
     # Combine the light areas to the dark areas
     bf_thresh += (im_no_bg > thresh_upper)
@@ -183,11 +232,8 @@ def signal_segmentation(im_sig, gauss_sigma = 100, sig_thresh = 1000, min_size =
     hist_bin = skimage.exposure.histogram(im_no_bg)
     hist, bins = hist_bin
 
-    # Determine the second derivative of the gradient
-    dn_dk = np.diff(np.diff(hist))
-
     # Using the thresh_finder function, determine the threshold that enables separation of bright objects from the background
-    thresh = thresh_finder(dn_dk, bins, desired_thresh = sig_thresh)
+    thresh = sig_thresh_finder(hist, bins, desired_thresh = sig_thresh)
     
     # Determine the dark areas
     sig_thresh = (im_no_bg > thresh)
@@ -203,9 +249,13 @@ def signal_segmentation(im_sig, gauss_sigma = 100, sig_thresh = 1000, min_size =
     
     return(sig_thresh, total_area)
 
-def in_vitro_quantification(im_bf, im_sig, bf_gauss_sigma = 30, truncate = 0.35, dark_thresh = 1000, light_thresh = 350, disk_radius = 2, sig_gauss_sigma = 100, sig_thresh = 1000, min_size = 5, h_max = 0.01, collected_percentiles = [5,95]):
-    brightfield_areas, total_area = brightfield_segmentation(im_bf, bf_gauss_sigma, truncate, dark_thresh, light_thres, disk_radius)
+def in_vitro_quantification(im_bf, im_sig, bf_gauss_sigma = 30, truncate = 0.35, dark_thresh = 10000, light_thresh = 3000, disk_radius = 2, sig_gauss_sigma = 100, sig_thresh = 1000, min_size = 5, h_max = 0.01, collected_percentiles = [5,95]):
+    brightfield_areas, total_area = brightfield_segmentation(im_bf, bf_gauss_sigma, truncate, dark_thresh, light_thresh, disk_radius)
     signal_areas, signal_total_area = signal_segmentation(im_sig, sig_gauss_sigma, sig_thresh, min_size)
+    
+    original_sig = signal_areas*im_sig
+    
+    total_brightness = np.sum(np.sum(original_sig))
     
     #Determine the local maxima, considering pixels above the originally obtained threshold
     image_max = skimage.morphology.h_maxima(im_sig, h_max)
@@ -220,8 +270,14 @@ def in_vitro_quantification(im_bf, im_sig, bf_gauss_sigma = 30, truncate = 0.35,
     
     cell_list, cell_intensity_list = brightness_counter(im_labeled, im_sig)
     
-    median = np.median(list(cell_intensity_list.values()))
-    nintyfifth = np.percentile(list(cell_intensity_list.values()), collected_percentiles[1])
-    fifth = np.percentile(list(cell_intensity_list.values()), collected_percentiles[0])
+    if cell_list != []:
+        
+        median = np.median(list(cell_intensity_list.values()))
+        nintyfifth = np.percentile(list(cell_intensity_list.values()), collected_percentiles[1])
+        fifth = np.percentile(list(cell_intensity_list.values()), collected_percentiles[0])
+
+        return(n_labels, cell_list, cell_intensity_list, total_area, signal_total_area, total_brightness, median, nintyfifth, fifth)
     
-    return(n_labels, cell_list, cell_intensity_list, total_area, signal_total_area, median, nintyfifth, fifth)
+    else: 
+        return(n_labels, cell_list, cell_intensity_list, total_area, signal_total_area, total_brightness, [], [], [])
+        
