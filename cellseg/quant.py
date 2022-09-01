@@ -65,8 +65,7 @@ def sig_thresh_finder(histogram, bins, desired_thresh = 1000):
             past_i = i
             index += 1
 
-        thresh_val = min(thresh - peak_val)
-        #thresh_val = np.max(thresh)
+        thresh_val = np.min(thresh)
 
         return(thresh_val)
 
