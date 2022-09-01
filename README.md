@@ -6,11 +6,22 @@ This pipeline can be used to perform analysis and quantification on images of in
 ## Notebooks
 
 ## Installation
-To operate this code, you need to have the following packages installed: 
+To operate this code, first jupyter notebook should be installed to allow simple examination of the python notebooks. 
 
-FILL IN HERE
+First, setup the package by running `pip install -e .` in the directory containing `setup.py`. This will allow you to have an editable version of the code.
+
+Then, make sure you have the following packages installed: 
+pandas
+numpy
+json
+bokeh
+scipy
+skimage
+glob
+opencv
 
 ## Credits
+David Goertsen wrote all of the code for this repository.
 
 ## License
 GNU GENERAL PUBLIC LICENSE
