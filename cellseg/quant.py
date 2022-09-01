@@ -30,9 +30,7 @@ def sig_thresh_finder(histogram, bins, desired_thresh = 1000):
     
     peak_val = bins[result[0][0]]
     
-    dn_dk = np.diff(np.diff(histogram))
-    
-    for i in dn_dk:
+    for i in histogram:
 
         # Look for the threshold location
         if (past_i > desired_thresh and i <= desired_thresh) and (bins[index] > peak_val):
@@ -47,8 +45,7 @@ def sig_thresh_finder(histogram, bins, desired_thresh = 1000):
     
     if thresh != []:
         
-        thresh_val = min(thresh - peak_val)
-        #thresh_val = np.max(thresh)
+        thresh_val = np.min(thresh)
 
         return(thresh_val)
     
