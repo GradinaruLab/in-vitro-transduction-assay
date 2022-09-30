@@ -19,6 +19,7 @@ scipy
 skimage
 glob
 opencv
+imagecodecs
 
 ## Credits
 David Goertsen wrote all of the code for this repository.
