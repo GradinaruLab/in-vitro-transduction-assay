@@ -2,6 +2,12 @@
 import numpy as np
 import pandas as pd
 
+import tqdm
+import os
+import glob
+
+import datetime
+
 # Image processing tools
 import skimage.io
 from skimage import (color, feature, filters, measure, morphology, segmentation, util)
@@ -277,3 +283,68 @@ def in_vitro_quantification(im_bf, im_sig, bf_gauss_sigma = 30, truncate = 0.35,
     else: 
         return(n_labels, cell_list, cell_intensity_list, total_area, signal_total_area, total_brightness, [], [], [])
         
+def workflow(df_lut, directory, output_file, input_file = None):
+    if input_file == None:
+        # Initialize a dataframe
+        df = pd.DataFrame(columns=['Date',
+                           'Round',
+                           'Plate',
+                           'Well',
+                           'Count',
+                           'Cells Quantified',
+                           'Brightness List',
+                           'Bright Field Area',
+                           'Signal Area',
+                           'Total Brightness',
+                           'Median Cell Brightness',
+                            '90% Confidence Interval'])
+
+    else:
+        df = pd.read_csv(input_file, comment='#')
+    
+    # Cycle through the rows in the look up table
+    for index, row in tqdm.tqdm(df_lut.iterrows(), total=df_lut.shape[0]):
+
+        #Get the file location:
+        if row['Well'] < 10:
+            well_directory = directory + '/round_' + str(row['Round']) + '/plate_' + str(row['Plate']) + '/XY0' + str(row['Well']) +'/'
+        else:
+            well_directory = directory + '/round_' + str(row['Round']) + '/plate_' + str(row['Plate']) + '/XY' + str(row['Well']) +'/'
+
+        #Collect all the images from the final folder (there should be four images), although only two will be used.
+        file_list = glob.glob(well_directory + '*.tif')
+        
+        # If there are less than four images, the code jumps to the next folder
+        if len(file_list) == 4:
+
+            # Initialize the images
+            im_sig = skimage.img_as_float(skimage.io.imread(file_list[0])[:,:,1])
+            im_bf = skimage.img_as_float(skimage.io.imread(file_list[1])[:,:])
+            im_dapi = skimage.img_as_float(skimage.io.imread(file_list[2])[:,:,2])
+
+            # Collect data from the image by running it through the cellseg.quant package. For more information, see that code.  
+            n_cells, cell_list, cell_intensity_list, bf_area, signal_area, total_brightness, median, nintyfifth, fifth  = in_vitro_quantification(im_bf, im_sig)
+
+            temp_df = pd.DataFrame.from_dict([{'Date' : datetime.datetime.now(),
+                            'Round': row['Round'],
+                            'Plate': row['Plate'],
+                            'Well': row['Well'], 
+                            'Count' : int(n_cells),
+                            'Cells Quantified' : str(cell_list), 
+                            'Brightness List': str(cell_intensity_list), 
+                            'Bright Field Area': bf_area,
+                            'Signal Area': signal_area,
+                            'Total Brightness': total_brightness,
+                            'Median Cell Brightness': median, 
+                            '90% Confidence Interval': [fifth, nintyfifth]}])
+            
+            # Write all the information into a tidy dataframe
+            df = pd.concat([df,temp_df],
+                           ignore_index=True)
+
+            # Save the dataframe
+            df.to_csv(output_file, index=False)
+        else:
+            continue
+            
+    return(df)
