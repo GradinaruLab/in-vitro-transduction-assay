@@ -320,31 +320,37 @@ def workflow(df_lut, directory, output_file, input_file = None):
             # Initialize the images
             im_sig = skimage.img_as_float(skimage.io.imread(file_list[0])[:,:,1])
             im_bf = skimage.img_as_float(skimage.io.imread(file_list[1])[:,:])
-            im_dapi = skimage.img_as_float(skimage.io.imread(file_list[2])[:,:,2])
-
-            # Collect data from the image by running it through the cellseg.quant package. For more information, see that code.  
-            n_cells, cell_list, cell_intensity_list, bf_area, signal_area, total_brightness, median, nintyfifth, fifth  = in_vitro_quantification(im_bf, im_sig)
-
-            temp_df = pd.DataFrame.from_dict([{'Date' : datetime.datetime.now(),
-                            'Round': row['Round'],
-                            'Plate': row['Plate'],
-                            'Well': row['Well'], 
-                            'Count' : int(n_cells),
-                            'Cells Quantified' : str(cell_list), 
-                            'Brightness List': str(cell_intensity_list), 
-                            'Bright Field Area': bf_area,
-                            'Signal Area': signal_area,
-                            'Total Brightness': total_brightness,
-                            'Median Cell Brightness': median, 
-                            '90% Confidence Interval': [fifth, nintyfifth]}])
             
-            # Write all the information into a tidy dataframe
-            df = pd.concat([df,temp_df],
-                           ignore_index=True)
-
-            # Save the dataframe
-            df.to_csv(output_file, index=False)
+        elif len(file_list) == 5:
+            
+            im_sig = skimage.img_as_float(skimage.io.imread(file_list[0])[:,:,1])
+            im_bf = skimage.img_as_float(skimage.io.imread(file_list[3])[:,:])
+            
         else:
             continue
-            
+        
+        # Collect data from the image by running it through the cellseg.quant package. For more information, see that code.  
+        n_cells, cell_list, cell_intensity_list, bf_area, signal_area, total_brightness, median, nintyfifth, fifth  = in_vitro_quantification(im_bf, im_sig)
+
+        temp_df = pd.DataFrame.from_dict([{'Date' : datetime.datetime.now(),
+                        'Round': row['Round'],
+                        'Plate': row['Plate'],
+                        'Well': row['Well'], 
+                        'Count' : int(n_cells),
+                        'Cells Quantified' : str(cell_list), 
+                        'Brightness List': str(cell_intensity_list), 
+                        'Bright Field Area': bf_area,
+                        'Signal Area': signal_area,
+                        'Total Brightness': total_brightness,
+                        'Median Cell Brightness': median, 
+                        '90% Confidence Interval': [fifth, nintyfifth]}])
+
+        # Write all the information into a tidy dataframe
+        df = pd.concat([df,temp_df],
+                       ignore_index=True)
+
+        # Save the dataframe
+        df.to_csv(output_file, index=False)
+
+        
     return(df)

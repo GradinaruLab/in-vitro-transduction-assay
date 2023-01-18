@@ -111,10 +111,17 @@ def single_image_viewer(path, round_, plate, well):
     # Collect the images at that well
     file_list = glob.glob(well_directory + '*.tif')
     
-    # Initialize both the signal and autofluorescence image:
-    im_sig = skimage.img_as_float(skimage.io.imread(file_list[0])[:,:,1])
-    im_bf = skimage.img_as_float(skimage.io.imread(file_list[1])[:,:])
-    im_dapi = skimage.img_as_float(skimage.io.imread(file_list[2])[:,:,2])
+    # If there are less than four images, the code jumps to the next folder
+    if len(file_list) == 4:
+
+        # Initialize the images
+        im_sig = skimage.img_as_float(skimage.io.imread(file_list[0])[:,:,1])
+        im_bf = skimage.img_as_float(skimage.io.imread(file_list[1])[:,:])
+
+    elif len(file_list) == 5:
+
+        im_sig = skimage.img_as_float(skimage.io.imread(file_list[0])[:,:,1])
+        im_bf = skimage.img_as_float(skimage.io.imread(file_list[3])[:,:])
 
     # Perform the brightfield segmentation
     brightfield_areas, total_area = cellseg.quant.brightfield_segmentation(im_bf)
